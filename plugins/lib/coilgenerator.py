@@ -72,9 +72,9 @@ def generate(layer_count, wrap_clockwise, turns_per_layer, trace_width, trace_sp
 		"ARCS": ''.join(arcs),
 		"VIAS": ''.join(vias),
 		"PADS": ''.join(pads),
-		"TIMESTAMP1": generator.tstamp(),
-		"TIMESTAMP2": generator.tstamp(),
-		"TIMESTAMP3": generator.tstamp(),
+		"TIMESTAMP1": generator.get_uuid(),
+		"TIMESTAMP2": generator.get_uuid(),
+		"TIMESTAMP3": generator.get_uuid(),
 	}
 
 	return template.format(**substitution_dict)

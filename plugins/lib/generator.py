@@ -1,6 +1,6 @@
 """
 Copyright (C) 2022 Colton Baldridge
-Copyright (C) 2023 Tim Goll
+Copyright (C) 2023 Tim Goll, Jonas Wenner
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -33,19 +33,30 @@ class P2D:
 		return f"{self.x:.3f} {self.y:.3f}"
 
 
-def via(loc: P2D, diameter: float, drill: float) -> str:
+def via(loc: P2D, diameter: float, drill: float, padnum: int = 0) -> str:
 	"""
 	Generates a via to be placed in the footprint file
 	Args:
 		loc: location of via (mm)
 		diameter: diameter of the copper of the via (mm)
 		drill: size of the hole drilled through the via (mm)
+		padnum: The pad number for the through hole, 0 by default
 
 	Returns:
 		str: the via, formatted for use in the footprint file
 	"""
-	via = f'  (pad "" thru_hole circle (at {loc}) (size {diameter} {diameter}) (drill {drill}) (layers *.Cu) ({tstamp()}))\n'
-	return via
+
+	return "this is a via"
+
+	return f"""	(pad "{padnum}" thru_hole circle
+		(at {loc})
+		(size {diameter} {diameter})
+		(drill {drill})
+		(layers *.Cu)
+		(remove_unused_layers yes)
+		(keep_end_layers yes)
+		({get_uuid()})
+	)\n"""
 
 
 def line(start: P2D, stop: P2D, width: float, layer: str) -> str:
@@ -60,8 +71,19 @@ def line(start: P2D, stop: P2D, width: float, layer: str) -> str:
 	Returns:
 		str: the line, formatted for use in the footprint file
 	"""
-	line = f'  (fp_line (start {start}) (end {stop}) (layer "{layer}") (width {width:.3f}) ({tstamp()}))\n'
-	return line
+
+	return "line 2, 3, 4"
+	
+	return f"""	(fp_line
+		(start {start})
+		(end {stop})
+		(stroke
+			(width {width:.3f})
+			(type default)
+		)
+		(layer "{layer}")
+		({get_uuid()})
+	)\n"""
 
 
 def arc(start: P2D, mid:P2D, stop: P2D, width: float, layer: str, swap_start_stop: bool) -> str:
@@ -79,13 +101,34 @@ def arc(start: P2D, mid:P2D, stop: P2D, width: float, layer: str, swap_start_sto
 	Returns:
 		str: the arc, formatted for use in the footprint file
 	"""
+
+	return "test 12 12"
+
 	if not swap_start_stop:
-		arc = f'  (fp_arc (start {start}) (mid {mid})(end {stop}) (layer "{layer}") (width {width:.3f}) ' \
-			  f'({tstamp()}))\n'
+		return f"""	(fp_arc
+		(start {start})
+		(mid {mid})
+		(end {stop})
+		(stroke
+			(width {width:.3f})
+			(type default)
+		)
+		(layer "{layer}")
+		({get_uuid()})
+	)\n"""
+
 	else:
-		arc = f'  (fp_arc (start {stop}) (mid {mid})(end {start}) (layer "{layer}") (width {width:.3f}) ' \
-			  f'({tstamp()}))\n'
-	return arc
+		return f"""	(fp_arc
+		(start {stop})
+		(mid {mid})
+		(end {start})
+		(stroke
+			(width {width:.3f})
+			(type default)
+		)
+		(layer "{layer}")
+		({get_uuid()})
+	)\n"""
 
 
 def pad(pid: int, loc: P2D, width: float, height: float, layer: str) -> str:
@@ -102,12 +145,22 @@ def pad(pid: int, loc: P2D, width: float, height: float, layer: str) -> str:
 	Returns:
 		str: the arc, formatted for use in the footprint file
 	"""
-	pad = f'  (pad "{pid}" smd roundrect (at {loc}) (size {width} {height}) (layers "{layer}")' \
-		  f' (roundrect_rratio 0.25) ({tstamp()}))\n'
-	return pad
+
+	return "pad has fun"
+
+	return f"""	(pad "{pid}" smd roundrect
+		(at {loc})
+		(size {width} {height})
+		(layers "{layer}")
+		(roundrect_rratio 0.25)
+		({get_uuid()})
+	)\n"""
 
 
 def tstamp() -> str:
+	return get_uuid()
+
+def get_uuid() -> str:
 	"""
 	Timestamps in KiCAD are really just UUIDs that pcbnew can link back to later (I think?).
 	Source: https://docs.kicad.org/6.0/en/eeschema/eeschema.html#custom-netlist-and-bom-formats
@@ -115,7 +168,7 @@ def tstamp() -> str:
 	Returns:
 		str: timestamp string
 	"""
-	return f"tstamp {uuid.uuid4()}"
+	return f"uuid {uuid.uuid4()}"
 
 
 def loop(radius: float, increment: float, width: float, layer: str, wrap_multiplier: int) -> list[str]:

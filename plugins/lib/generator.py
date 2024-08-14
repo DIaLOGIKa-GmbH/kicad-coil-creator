@@ -46,8 +46,6 @@ def via(loc: P2D, diameter: float, drill: float, padnum: int = 0) -> str:
 		str: the via, formatted for use in the footprint file
 	"""
 
-	return "this is a via"
-
 	return f"""	(pad "{padnum}" thru_hole circle
 		(at {loc})
 		(size {diameter} {diameter})
@@ -71,8 +69,6 @@ def line(start: P2D, stop: P2D, width: float, layer: str) -> str:
 	Returns:
 		str: the line, formatted for use in the footprint file
 	"""
-
-	return "line 2, 3, 4"
 	
 	return f"""	(fp_line
 		(start {start})
@@ -101,8 +97,6 @@ def arc(start: P2D, mid:P2D, stop: P2D, width: float, layer: str, swap_start_sto
 	Returns:
 		str: the arc, formatted for use in the footprint file
 	"""
-
-	return "test 12 12"
 
 	if not swap_start_stop:
 		return f"""	(fp_arc
@@ -145,8 +139,6 @@ def pad(pid: int, loc: P2D, width: float, height: float, layer: str) -> str:
 	Returns:
 		str: the arc, formatted for use in the footprint file
 	"""
-
-	return "pad has fun"
 
 	return f"""	(pad "{pid}" smd roundrect
 		(at {loc})

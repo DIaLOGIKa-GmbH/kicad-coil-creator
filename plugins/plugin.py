@@ -361,22 +361,33 @@ class CoilGeneratorUI(wx.Frame):
 		
 		# paste generated footprint into the pcbview
 		try:
-			evt = wx.KeyEvent(wx.wxEVT_CHAR_HOOK)
-			evt.SetKeyCode(ord('V'))
-			evt.SetControlDown(True)
-			self.logger.log(logging.INFO, "Using wx.KeyEvent for paste")
+			evt_esc = wx.KeyEvent(wx.wxEVT_CHAR_HOOK)
+			evt_esc.SetKeyCode(wx.WXK_ESCAPE)
+			evt_esc.SetControlDown(True)
+
+			wx.PostEvent(self._pcbnew_frame, evt_esc)
+
+			evt_paste = wx.KeyEvent(wx.wxEVT_CHAR_HOOK)
+			evt_paste.SetKeyCode(ord('V'))
+			evt_paste.SetControlDown(True)
 		
-			wx.PostEvent(self._pcbnew_frame, evt)
+			wx.PostEvent(self._pcbnew_frame, evt_paste)
+
+			self.logger.log(logging.INFO, "Using wx.KeyEvent for select and paste")
 		except:
 			# Likely on Linux with old wx python support :(
-			self.logger.log(logging.INFO, "Using wx.UIActionSimulator for paste")
 			keyinput = wx.UIActionSimulator()
 			self._pcbnew_frame.Raise()
 			self._pcbnew_frame.SetFocus()
+
 			wx.MilliSleep(100)
 			wx.Yield()
+
 			# Press and release CTRL + V
 			keyinput.Char(ord("V"), wx.MOD_CONTROL)
+
+			self.logger.log(logging.INFO, "Using wx.UIActionSimulator for paste")
+
 			wx.MilliSleep(100)
 
 	def _init_logger(self):

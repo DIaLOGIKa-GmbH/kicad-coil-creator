@@ -81,6 +81,8 @@ class CoilGeneratorUI(wx.Frame):
 
 			self.logger.log(logging.DEBUG, entry)
 
+		self.Bind(wx.EVT_CHAR_HOOK, self._on_key_up)
+
 		self.notes = self._make_label(label="")
 		self.notes.SetForegroundColour((255, 0, 0, 255))
 		self.logger.log(logging.DEBUG, "[UI] Adding Label")
@@ -378,6 +380,21 @@ class CoilGeneratorUI(wx.Frame):
 			# Press and release CTRL + V
 			keyinput.Char(ord("V"), wx.MOD_CONTROL)
 			wx.MilliSleep(100)
+
+	def _on_key_up(self, event):
+		key_code = event.GetKeyCode()
+		modifiers = event.GetModifiers()
+
+		if key_code == wx.WXK_ESCAPE:
+			self.Close()
+
+			return
+		elif key_code == key_code == wx.WXK_RETURN and modifiers == wx.MOD_CONTROL:
+			self._on_generate_button_klick(event)
+
+			return
+
+		event.Skip()
 
 	def _init_logger(self):
 		root = logging.getLogger()

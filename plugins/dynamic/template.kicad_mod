@@ -42,4 +42,5 @@
 	)
 	(zone_connect 2)
 	(net_tie_pad_groups "0, 1, 2")
+	(attr exclude_from_pos_files exclude_from_bom allow_missing_courtyard)
 {LINES}{ARCS}{VIAS}{PADS})

@@ -193,7 +193,10 @@ def generate_vias(outer_diameter, turns_per_layer, trace_width, trace_spacing, v
 	if num_vias_outside != 0:
 		degree_steps_outside = 360 / (num_vias_outside)
 
-	for v in range(0, num_vias_inside + num_vias_outside):
+	via_count = num_vias_inside + num_vias_outside
+	odd_layer_count = layer_count % 2
+
+	for v in range(0, via_count):
 
 		# define if via is placed inside or outside of coil
 		via_used_radius = VIA_INSIDE_RADIUS
@@ -215,13 +218,24 @@ def generate_vias(outer_diameter, turns_per_layer, trace_width, trace_spacing, v
 
 		arc_connectors.append(Connector(width, height, rotation_degree))
 
-		vias.append(
-			generator.via(
-				generator.P2D(width, height),
-				via_diameter,
-				via_drill
+		# if the coil has an odd layer count, the last via shold be pad number 2
+		if odd_layer_count == 1 and v == via_count -1:
+			vias.append(
+				generator.via(
+					generator.P2D(width, height),
+					via_diameter,
+					via_drill,
+					2
+				)
 			)
-		)
+		else:
+			vias.append(
+				generator.via(
+					generator.P2D(width, height),
+					via_diameter,
+					via_drill
+				)
+			)
 
 	return (vias, arc_connectors)
 

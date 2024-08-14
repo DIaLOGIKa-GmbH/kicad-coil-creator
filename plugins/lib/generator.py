@@ -149,9 +149,6 @@ def pad(pid: int, loc: P2D, width: float, height: float, layer: str) -> str:
 	)\n"""
 
 
-def tstamp() -> str:
-	return get_uuid()
-
 def get_uuid() -> str:
 	"""
 	Timestamps in KiCAD are really just UUIDs that pcbnew can link back to later (I think?).

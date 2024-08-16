@@ -13,6 +13,8 @@
 
 The _KiCad Coil Generator_ is included with the official "Plugin and Content Manager" from KiCad version 7 or newer.
 
+![plugin and content manager](assets/plugin_manager.png)
+
 ### Manual Installation
 
 Download the [latest release ZIP file](https://github.com/DIaLOGIKa-GmbH/kicad-coil-creator/releases). Open the "Plugin and Content Manager" from the KiCads main window and install the ZIP file via "Install from File".

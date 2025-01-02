@@ -9,6 +9,8 @@ import pcbnew # type: ignore
 from .lib import menu
 from .lib import coilgenerator
 
+#from kipy import KiCad
+
 # WX GUI form that show coil settings
 class CoilGeneratorUI(wx.Frame):
 	def __init__(self, pcbnew_frame):
@@ -48,6 +50,30 @@ class CoilGeneratorUI(wx.Frame):
 		self.SetBackgroundColour(wx.LIGHT_GREY)
 
 		self._prepare_defaults_from_cached_settings(menu.structure)
+
+		self.logger.log(logging.DEBUG, "PCBnew functions:")
+		self.logger.log(logging.DEBUG, [method for method in dir(pcbnew) if method.startswith('__') is False])
+
+		self.logger.log(logging.DEBUG, "Settingsmanager functions:")
+		self.logger.log(logging.DEBUG, [method for method in dir(pcbnew.GetSettingsManager()) if method.startswith('__') is False])
+
+		self.logger.log(logging.DEBUG, "Settingsmanager Project functions:")
+		self.logger.log(logging.DEBUG, pcbnew.GetSettingsManager().GetProject(""))
+
+		self.logger.log(logging.DEBUG, "User Units functions:")
+		self.logger.log(logging.DEBUG, [method for method in dir(pcbnew.GetUserUnits()) if method.startswith('__') is False])
+
+		self.logger.log(logging.DEBUG, "Board functions:")
+		self.logger.log(logging.DEBUG, [method for method in dir(pcbnew.GetBoard()) if method.startswith('__') is False])
+
+		self.logger.log(logging.DEBUG, "Board Design Settings functions:")
+		self.logger.log(logging.DEBUG, [method for method in dir(pcbnew.GetBoard().GetDesignSettings()) if method.startswith('__') is False])
+
+		self.logger.log(logging.DEBUG, "Board Stackup functions:")
+		self.logger.log(logging.DEBUG, [method for method in dir(pcbnew.GetBoard().GetDesignSettings().GetStackupDescriptor()) if method.startswith('__') is False])
+
+		self.logger.log(logging.DEBUG, "Board Stackup functions:")
+		self.logger.log(logging.DEBUG, pcbnew.GetBoard().GetDesignSettings().GetStackupDescriptor())
 
 		for entry in menu.structure:
 			if entry["type"] == "choices" or entry["type"] == "choices_from_board":
@@ -490,18 +516,9 @@ class CoilGeneratorUI(wx.Frame):
 def get_safe_name(name, keepcharacters = (' ','.','_')):
     return "".join(c for c in name if c.isalnum() or c in keepcharacters).rstrip()
 
-# Plugin definition
-class Plugin(pcbnew.ActionPlugin):
-	def __init__(self):
-		self.name = "Coil Generator"
-		self.category = "Manufacturing"
-		self.description = "Toolkit to automatically generate coils for KiCad"
-		self.pcbnew_icon_support = hasattr(self, "show_toolbar_button")
-		self.show_toolbar_button = True
-		self.icon_file_name = os.path.join(os.path.dirname(__file__), 'icon.png')
-		self.dark_icon_file_name = os.path.join(os.path.dirname(__file__), 'icon.png')
-			
-	def Run(self):
-		# Assuming the PCBNew window is focused when run function is executed
-		# Alternative would be to keep track of last focussed window, which does not seem to work on all systems
-		CoilGeneratorUI(wx.Window.FindFocus()).Show()
+if __name__ == "__main__":
+    app = wx.App()
+    coilgen = CoilGeneratorUI(wx.Window.FindFocus())
+    coilgen.Show()
+    app.MainLoop()
+    coilgen.Destroy()

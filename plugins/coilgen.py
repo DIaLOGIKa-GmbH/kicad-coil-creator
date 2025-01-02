@@ -51,30 +51,6 @@ class CoilGeneratorUI(wx.Frame):
 
 		self._prepare_defaults_from_cached_settings(menu.structure)
 
-		self.logger.log(logging.DEBUG, "PCBnew functions:")
-		self.logger.log(logging.DEBUG, [method for method in dir(pcbnew) if method.startswith('__') is False])
-
-		self.logger.log(logging.DEBUG, "Settingsmanager functions:")
-		self.logger.log(logging.DEBUG, [method for method in dir(pcbnew.GetSettingsManager()) if method.startswith('__') is False])
-
-		self.logger.log(logging.DEBUG, "Settingsmanager Project functions:")
-		self.logger.log(logging.DEBUG, pcbnew.GetSettingsManager().GetProject(""))
-
-		self.logger.log(logging.DEBUG, "User Units functions:")
-		self.logger.log(logging.DEBUG, [method for method in dir(pcbnew.GetUserUnits()) if method.startswith('__') is False])
-
-		self.logger.log(logging.DEBUG, "Board functions:")
-		self.logger.log(logging.DEBUG, [method for method in dir(pcbnew.GetBoard()) if method.startswith('__') is False])
-
-		self.logger.log(logging.DEBUG, "Board Design Settings functions:")
-		self.logger.log(logging.DEBUG, [method for method in dir(pcbnew.GetBoard().GetDesignSettings()) if method.startswith('__') is False])
-
-		self.logger.log(logging.DEBUG, "Board Stackup functions:")
-		self.logger.log(logging.DEBUG, [method for method in dir(pcbnew.GetBoard().GetDesignSettings().GetStackupDescriptor()) if method.startswith('__') is False])
-
-		self.logger.log(logging.DEBUG, "Board Stackup functions:")
-		self.logger.log(logging.DEBUG, pcbnew.GetBoard().GetDesignSettings().GetStackupDescriptor())
-
 		for entry in menu.structure:
 			if entry["type"] == "choices" or entry["type"] == "choices_from_board":
 

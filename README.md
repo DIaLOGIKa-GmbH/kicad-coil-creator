@@ -11,7 +11,7 @@
 
 ### Official Installation
 
-The _KiCad Coil Generator_ is included with the official "Plugin and Content Manager" from KiCad version 7 or newer.
+The _PCB Coil Generator_ is included with the official "Plugin and Content Manager" from KiCad version 7 or newer.
 
 ![plugin and content manager](assets/plugin_manager.png)
 
@@ -21,7 +21,7 @@ Download the [latest release ZIP file](https://github.com/DIaLOGIKa-GmbH/kicad-c
 
 ### Development Setup
 
-Clone the repository to your local machine. Add a symbolic link from the addon's `plugin` folder to `<user documents>/KiCad/<version>/3rdparty/plugins/`. You can rename the sym-linked `plugin` folder to your liking.
+Clone the repository to your local machine. Add a symbolic link from the addon's `plugins` folder to `<user documents>/KiCad/<version>/3rdparty/plugins/`. You can rename the sym-linked `plugin` folder to your liking.
 
 ## Detailed Usage
 

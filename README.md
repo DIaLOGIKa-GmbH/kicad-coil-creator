@@ -23,6 +23,8 @@ Download the [latest release ZIP file](https://github.com/DIaLOGIKa-GmbH/kicad-c
 
 Clone the repository to your local machine. Add a symbolic link from the addon's `plugins` folder to `<user documents>/KiCad/<version>/plugins/`. You can rename the sym-linked `plugin` folder to your liking.
 
+To enable the debug console, a few environment variables have to be set, [follow the guide in the official documentation on IPC plugins](https://dev-docs.kicad.org/en/apis-and-binding/ipc-api/for-addon-developers/#_debugging). Logging to text files is not needed in most cases.
+
 ## Detailed Usage
 
 This tool creates PCB coils that can be either directly inserted into the PCB itself, or exported as a footprint. The UI can be accessed from within the PCB editor:

@@ -6,10 +6,11 @@ import math
 import wx # type: ignore
 import pcbnew # type: ignore
 
-from .lib import menu
-from .lib import coilgenerator
+import lib.menu as menu
+import lib.coilgenerator as coilgenerator
 
-#from kipy import KiCad
+from kipy import KiCad # type: ignore
+from kipy.board import BoardLayer # type: ignore
 
 # WX GUI form that show coil settings
 class CoilGeneratorUI(wx.Frame):
@@ -20,8 +21,18 @@ class CoilGeneratorUI(wx.Frame):
 		self.width_content = 180
 		self.padding = 5
 
-		self.board = pcbnew.GetBoard()
-		self.path_project = os.path.dirname(self.board.GetFileName())
+		self.kicad = KiCad()
+
+		self.board = self.kicad.get_board()
+		self.stackup = self.board.get_stackup()
+
+		self.copper_layers = [layer for layer in self.stackup.layers
+			if layer.layer <= BoardLayer.BL_B_Cu
+			and layer.layer >= BoardLayer.BL_F_Cu
+		]
+		self.copper_layer_count = len(self.copper_layers)
+
+		self.path_project = self.board.document.project.path
 		self.path_footprint_folder_name = "/pcb_coils/"
 		self.path_footprint_folder = self.path_project + self.path_footprint_folder_name
 		self.path_fp_lib_table = self.path_project + "/fp-lib-table"
@@ -57,8 +68,8 @@ class CoilGeneratorUI(wx.Frame):
 				# if choice structure values are sourced from board variables, some fields need to be dynamically generated before applying general choice handling
 				if entry["type"] == "choices_from_board":
 					if entry["choices_source"] == "COPPER_LAYER_COUNT":
-						entries_str = [str(e) for e in range(1, pcbnew.GetBoard().GetCopperLayerCount()+1)]
-						entries = [e for e in range(1, pcbnew.GetBoard().GetCopperLayerCount()+1)]
+						entries_str = [str(e) for e in range(1, self.copper_layer_count + 1)]
+						entries = [e for e in range(1, self.copper_layer_count + 1)]
 						entry["choices"] = entries_str
 						entry["choices_data"] = entries
 
@@ -267,11 +278,11 @@ class CoilGeneratorUI(wx.Frame):
 		self.logger.log(logging.INFO, "Generating coil ...")
 		#generate layer names. KiCAD seems to want standard layer names for our generated objects, instead of custom defined layer names
 		layer_names = []
-		for x in range(pcbnew.GetBoard().GetCopperLayerCount()):
+		for x in range(self.copper_layer_count):
 			layer_names.append("In" + str(x) + ".Cu")
 		#first and last layer have different naming scheme than InX.Cu
 		layer_names[0] = "F.Cu"
-		layer_names[pcbnew.GetBoard().GetCopperLayerCount() -1] = "B.Cu"
+		layer_names[self.copper_layer_count -1] = "B.Cu"
 
 		template = coilgenerator.generate(
 			self._parse_data("layer_count"),
@@ -367,6 +378,18 @@ class CoilGeneratorUI(wx.Frame):
 
 			return
 		
+		"""evt_esc = wx.KeyEvent(wx.wxEVT_CHAR_HOOK)
+		evt_esc.SetKeyCode(wx.WXK_ESCAPE)
+		evt_esc.SetControlDown(True)
+
+		wx.PostEvent(self._pcbnew_frame, evt_esc)
+
+		evt_paste = wx.KeyEvent(wx.wxEVT_CHAR_HOOK)
+		evt_paste.SetKeyCode(ord('V'))
+		evt_paste.SetControlDown(True)
+	
+		wx.PostEvent(self._pcbnew_frame, evt_paste)
+
 		# paste generated footprint into the pcbview
 		try:
 			evt_esc = wx.KeyEvent(wx.wxEVT_CHAR_HOOK)
@@ -396,7 +419,7 @@ class CoilGeneratorUI(wx.Frame):
 
 			self.logger.log(logging.INFO, "Using wx.UIActionSimulator for paste")
 
-			wx.MilliSleep(100)
+			wx.MilliSleep(100)"""
 
 	def _on_key_up(self, event):
 		key_code = event.GetKeyCode()

@@ -265,8 +265,12 @@ class CoilGeneratorUI(wx.Frame):
 		self.Destroy()
 
 		self.logger.log(logging.INFO, "Generating coil ...")
-		layer_names = [pcbnew.GetBoard().GetLayerName(x) for x in range(pcbnew.GetBoard().GetCopperLayerCount())]
-		# last layer in layer list should always be B.Cu, but if board layer count != max_layer_count, pcbnew reports InX.Cu as last layer name
+		#generate layer names. KiCAD seems to want standard layer names for our generated objects, instead of custom defined layer names
+		layer_names = []
+		for x in range(pcbnew.GetBoard().GetCopperLayerCount()):
+			layer_names.append("In" + str(x) + ".Cu")
+		#first and last layer have different naming scheme than InX.Cu
+		layer_names[0] = "F.Cu"
 		layer_names[pcbnew.GetBoard().GetCopperLayerCount() -1] = "B.Cu"
 
 		template = coilgenerator.generate(

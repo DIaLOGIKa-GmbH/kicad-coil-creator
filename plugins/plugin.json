@@ -1,5 +1,5 @@
 {
-    "identifier": "coilgen",
+    "identifier": "com.github.DIaLOGIKa-GmbH.kicad-coil-creator",
     "name": "PCB Coil Generator",
     "description": "Generates multilayer PCB coils for direct placement or as a footprint",
     "runtime": {

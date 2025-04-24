@@ -9,8 +9,12 @@ import pcbnew # type: ignore
 import lib.menu as menu
 import lib.coilgenerator as coilgenerator
 
+from typing import cast
+
 from kipy import KiCad # type: ignore
-from kipy.board import BoardLayer # type: ignore
+from kipy.board import BoardLayer, BoardLayerClass # type: ignore
+from kipy.board_types import ArcTrack, FootprintInstance # type: ignore
+from kipy.geometry import Vector2 # type: ignore
 
 # WX GUI form that show coil settings
 class CoilGeneratorUI(wx.Frame):
@@ -364,7 +368,45 @@ class CoilGeneratorUI(wx.Frame):
 			file.close()
 
 	def _on_generate_button_klick(self, event):
-		template = self. _handle_coil_generation()
+		template = self._handle_coil_generation()
+
+		self.logger.log(logging.INFO, "dies ist ein test! ----------------------------------------")
+
+		defaults = self.board.get_graphics_defaults()[BoardLayerClass.BLC_COPPER]
+
+		fpi = FootprintInstance()
+		fpi.layer = BoardLayer.BL_F_Cu
+		fpi.reference_field.text.value = "coil name"
+		fpi.reference_field.text.attributes = defaults.text
+		fpi.reference_field.text.attributes.visible = True
+		fpi.value_field.text.value = "abc def"
+		fpi.value_field.text.attributes = defaults.text
+		fpi.value_field.text.attributes.visible = False
+		fpi.attributes.not_in_schematic = True
+		fpi.attributes.exclude_from_bill_of_materials = True
+		fpi.attributes.exclude_from_position_files = True
+
+		fp = fpi.definition
+
+		copper_arc = ArcTrack()
+		copper_arc.start = Vector2.from_xy_mm(20, 20)
+		copper_arc.mid = Vector2.from_xy_mm(25, 30)
+		copper_arc.end = Vector2.from_xy_mm(30, 20)
+		copper_arc.width = 150000 #nm
+		copper_arc.layer = BoardLayer.BL_F_Cu
+
+		fp.add_item(copper_arc)
+
+
+		# TODO: Why do we have to do it like this?
+		# places everything at 0,0
+		created = [cast(FootprintInstance, i) for i in self.board.create_items(fpi)]
+
+		# attaches footprint to mouse
+		if len(created) == 1:
+			self.board.interactive_move(created[0].id)
+
+		self.logger.log(logging.INFO, copper_arc)
 
 		# copy the generated footprint into clipboard
 		clipboard = wx.Clipboard.Get()

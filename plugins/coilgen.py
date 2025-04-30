@@ -13,7 +13,7 @@ from typing import cast
 
 from kipy import KiCad # type: ignore
 from kipy.board import BoardLayer, BoardLayerClass # type: ignore
-from kipy.board_types import ArcTrack, FootprintInstance # type: ignore
+from kipy.board_types import BoardArc, FootprintInstance # type: ignore
 from kipy.geometry import Vector2 # type: ignore
 
 # WX GUI form that show coil settings
@@ -370,8 +370,6 @@ class CoilGeneratorUI(wx.Frame):
 	def _on_generate_button_klick(self, event):
 		template = self._handle_coil_generation()
 
-		self.logger.log(logging.INFO, "dies ist ein test! ----------------------------------------")
-
 		defaults = self.board.get_graphics_defaults()[BoardLayerClass.BLC_COPPER]
 
 		fpi = FootprintInstance()
@@ -388,12 +386,12 @@ class CoilGeneratorUI(wx.Frame):
 
 		fp = fpi.definition
 
-		copper_arc = ArcTrack()
+		copper_arc = BoardArc()
 		copper_arc.start = Vector2.from_xy_mm(20, 20)
-		copper_arc.mid = Vector2.from_xy_mm(25, 30)
+		copper_arc.mid = Vector2.from_xy_mm(25, 25) # mid point ON arc, NOT center point
 		copper_arc.end = Vector2.from_xy_mm(30, 20)
-		copper_arc.width = 150000 #nm
 		copper_arc.layer = BoardLayer.BL_F_Cu
+		copper_arc.attributes.stroke.width = 1500000 # nm
 
 		fp.add_item(copper_arc)
 
@@ -405,8 +403,6 @@ class CoilGeneratorUI(wx.Frame):
 		# attaches footprint to mouse
 		if len(created) == 1:
 			self.board.interactive_move(created[0].id)
-
-		self.logger.log(logging.INFO, copper_arc)
 
 		# copy the generated footprint into clipboard
 		clipboard = wx.Clipboard.Get()

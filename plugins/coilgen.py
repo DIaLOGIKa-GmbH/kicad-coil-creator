@@ -13,7 +13,7 @@ from typing import cast
 
 from kipy import KiCad # type: ignore
 from kipy.board import BoardLayer, BoardLayerClass # type: ignore
-from kipy.board_types import BoardArc, FootprintInstance # type: ignore
+from kipy.board_types import BoardArc, Pad, PadStack, DrillProperties, FootprintInstance # type: ignore
 from kipy.geometry import Vector2 # type: ignore
 
 # WX GUI form that show coil settings
@@ -372,6 +372,13 @@ class CoilGeneratorUI(wx.Frame):
 
 		defaults = self.board.get_graphics_defaults()[BoardLayerClass.BLC_COPPER]
 
+		copper_layers = [layer for layer in self.stackup.layers
+                     if layer.layer <= BoardLayer.BL_B_Cu
+                     and layer.layer >= BoardLayer.BL_F_Cu]
+		
+		self.logger.log(logging.DEBUG, copper_layers)
+
+
 		fpi = FootprintInstance()
 		fpi.layer = BoardLayer.BL_F_Cu
 		fpi.reference_field.text.value = "coil name"
@@ -394,6 +401,17 @@ class CoilGeneratorUI(wx.Frame):
 		copper_arc.attributes.stroke.width = 1500000 # nm
 
 		fp.add_item(copper_arc)
+
+		fake_via = Pad()
+		fake_via.number = ""
+		fake_via.position = Vector2.from_xy_mm(10, 10)
+		#fake_via.pad_type = 0
+		#fake_via.padstack = PadStack()
+		#fake_via.padstack.drill.type = 0  # 0 = circular
+		fake_via.padstack.unconnected_layer_removal = True
+		fake_via.padstack.drill.diameter = Vector2.from_xy_mm(0.3, 0.3) # two dimensions, can be slot as well
+
+		fp.add_item(fake_via)
 
 
 		# TODO: Why do we have to do it like this?

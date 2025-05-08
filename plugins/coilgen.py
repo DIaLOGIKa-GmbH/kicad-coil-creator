@@ -13,12 +13,12 @@ from typing import cast
 
 from kipy import KiCad # type: ignore
 from kipy.board import BoardLayer, BoardLayerClass # type: ignore
-from kipy.board_types import BoardArc, Pad, PadStack, DrillProperties, FootprintInstance # type: ignore
+from kipy.board_types import BoardArc, Pad, FootprintInstance # type: ignore
 from kipy.geometry import Vector2 # type: ignore
 
 # WX GUI form that show coil settings
 class CoilGeneratorUI(wx.Frame):
-	def __init__(self, pcbnew_frame):
+	def __init__(self):
 		super(CoilGeneratorUI, self).__init__()
 
 		self.width_label = 120
@@ -44,8 +44,6 @@ class CoilGeneratorUI(wx.Frame):
 		self._init_logger()
 		self.logger = logging.getLogger(__name__)
 		self.logger.log(logging.DEBUG, "Running Coil Generator")
-
-		self._pcbnew_frame = pcbnew_frame
 
 		wx.Dialog.__init__(
 			self,
@@ -580,7 +578,7 @@ def get_safe_name(name, keepcharacters = (' ','.','_')):
 
 if __name__ == "__main__":
     app = wx.App()
-    coilgen = CoilGeneratorUI(wx.Window.FindFocus())
+    coilgen = CoilGeneratorUI()
     coilgen.Show()
     app.MainLoop()
     coilgen.Destroy()

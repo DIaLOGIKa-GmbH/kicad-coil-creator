@@ -1,6 +1,6 @@
 <img align="right" width="60px" src="assets/logo.svg">
 
-# PCB Coil Generator
+# PCB Coil Creator
 
 ## Features
 
@@ -11,7 +11,7 @@
 
 ### Official Installation
 
-The _KiCad Coil Generator_ is included with the official "Plugin and Content Manager" from KiCad version 7 or newer.
+The _PCB Coil Creator_ is included with the official "Plugin and Content Manager" from KiCad version 7 or newer.
 
 ![plugin and content manager](assets/plugin_manager.png)
 
@@ -21,7 +21,7 @@ Download the [latest release ZIP file](https://github.com/DIaLOGIKa-GmbH/kicad-c
 
 ### Development Setup
 
-Clone the repository to your local machine. Add a symbolic link from the addon's `plugin` folder to `<user documents>/KiCad/<version>/3rdparty/plugins/`. You can rename the sym-linked `plugin` folder to your liking.
+Clone the repository to your local machine. Add a symbolic link from the addon's `plugin` folder to `<user documents>/KiCad/<version>/plugins/`. You can rename the sym-linked `plugin` folder to your liking.
 
 ## Detailed Usage
 
@@ -57,4 +57,4 @@ _(Footprint automatically exported can be viewed in the footprint editor)_
   
 ## License
 
-The **KiCad PCB Coil Generator** as a whole is licensed under the GNU General Public License, Version 3. See the [license](LICENSE).
+The **KiCad PCB Coil Generator** as a whole is licensed under the GNU Affero General Public License, Version 3. See the [license](LICENSE).

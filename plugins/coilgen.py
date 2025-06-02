@@ -380,11 +380,9 @@ class CoilGeneratorUI(wx.Frame):
 		fpi = FootprintInstance()
 		fpi.layer = BoardLayer.BL_F_Cu
 		fpi.reference_field.text.value = "coil name"
-		fpi.reference_field.text.attributes = defaults.text
-		fpi.reference_field.text.attributes.visible = True
+		fpi.reference_field.visible = True
 		fpi.value_field.text.value = "abc def"
-		fpi.value_field.text.attributes = defaults.text
-		fpi.value_field.text.attributes.visible = False
+		fpi.value_field.visible = True
 		fpi.attributes.not_in_schematic = True
 		fpi.attributes.exclude_from_bill_of_materials = True
 		fpi.attributes.exclude_from_position_files = True
@@ -424,7 +422,7 @@ class CoilGeneratorUI(wx.Frame):
 			self.board.interactive_move(created[0].id)
 
 		# copy the generated footprint into clipboard
-		clipboard = wx.Clipboard.Get()
+		"""clipboard = wx.Clipboard.Get()
 		if clipboard.Open():
 			self.logger.log(logging.DEBUG, "Adding to clipboard")
 
@@ -435,7 +433,7 @@ class CoilGeneratorUI(wx.Frame):
 
 			return
 		
-		"""evt_esc = wx.KeyEvent(wx.wxEVT_CHAR_HOOK)
+		evt_esc = wx.KeyEvent(wx.wxEVT_CHAR_HOOK)
 		evt_esc.SetKeyCode(wx.WXK_ESCAPE)
 		evt_esc.SetControlDown(True)
 

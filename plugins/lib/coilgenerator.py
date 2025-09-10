@@ -75,6 +75,8 @@ def generate(layer_count, wrap_clockwise, turns_per_layer, trace_width, trace_sp
 		"UUID1": generator.get_uuid(),
 		"UUID2": generator.get_uuid(),
 		"UUID3": generator.get_uuid(),
+		# one-layer coils are missing 0, because 0 is assigned to vias in coilcreator, but the only via in one-layer coils is assigned 2 as it serves as connection pad 2
+		"NET_TIE": "0,1,2" if layer_count > 1 else "1,2"
 	}
 
 	return template.format(**substitution_dict)

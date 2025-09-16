@@ -160,16 +160,44 @@ def get_uuid() -> str:
 	return f"uuid {uuid.uuid4()}"
 
 
+def square(radius: float, increment: float, width: float, layer: str, wrap_multiplier: int) -> list[str]:
+	"""
+	Creates lines (in a loop), starting at radius, and finishing at radius + increment. Also adds increment to radius
+	at the end
+
+	Args:
+		radius: starting radius (mm)
+		increment: how far the lines should exceed the original radius after 1 loop (mm)
+		width: trace width (mm)
+		layer: "F.Cu" or "B.Cu" or any other layer name
+		wrap_multiplier: 1 for CW, -1 for CCW
+
+
+	Returns:
+		list containing lines in string form (will need to be put in .kicad_mod file)
+	"""
+	lines = [
+		line(P2D(radius, 0),P2D(radius, -wrap_multiplier * radius), width, layer),
+		line(P2D(radius, -wrap_multiplier * radius),P2D(-radius, -wrap_multiplier * radius), width, layer),
+		line(P2D(-radius, -wrap_multiplier * radius),P2D(-wrap_multiplier * radius, radius), width, layer),
+		line(P2D(-radius, -wrap_multiplier *  radius),P2D(-radius, -wrap_multiplier *  -radius ), width, layer),
+		line(P2D(-radius, -wrap_multiplier * -radius),P2D(radius + increment, -wrap_multiplier *  -radius ), width, layer),
+		line(P2D(radius + increment, -wrap_multiplier * -radius),P2D(radius + increment, 0 ), width, layer),
+	]
+
+	return lines
+
+
 def loop(radius: float, increment: float, width: float, layer: str, wrap_multiplier: int) -> list[str]:
 	"""
-	Creates to arcs (in a loop), starting at radius, and finishing at radius + increment. Also adds increment to radius
+	Creates two arcs (in a loop), starting at radius, and finishing at radius + increment. Also adds increment to radius
 	at the end
 
 	Args:
 		radius: starting radius (mm)
 		increment: how far the arc should exceed the original radius after 1 loop (mm)
 		width: trace width (mm)
-		layer: "F.Cu" or "B.Cu"
+		layer: "F.Cu" or "B.Cu" or any other layer name
 		wrap_multiplier: 1 for CW, -1 for CCW
 
 

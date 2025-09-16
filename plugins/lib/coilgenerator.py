@@ -19,12 +19,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import os
 import math
+from enum import IntEnum
 from . import generator
 
 TEMPLATE_FILE = "../dynamic/template.kicad_mod"
 BREAKOUT_LEN = 0.5  # (mm)
 
-class Connector:
+class ConnectorArc:
 	x: float
 	y: float
 	angle: float
@@ -35,9 +36,19 @@ class Connector:
 		self.angle = angle
 		self
 
-def generate(layer_count, wrap_clockwise, turns_per_layer, trace_width, trace_spacing, via_diameter, via_drill, outer_diameter, coil_name, layer_names):
+class ConnectorLine:
+	x: float
+	y: float
+
+	def __init__(self, x, y):
+		self.x = x
+		self.y = y
+		self
+
+
+def generate_square(layer_count, wrap_clockwise, turns_per_layer, trace_width, trace_spacing, via_diameter, via_drill, outer_diameter, coil_name, layer_names):
 	"""
-	Generates coils with given parameters. Attempts to place all parts to generate valid coils, though with some parameters, producing a valid coil might not be possible
+	Generates square coils with given parameters. Attempts to place all parts to generate valid coils, though with some parameters, producing a valid coil might not be possible
 	Args:
 		layer_count: Number of layers in coil
 		wrap_clockwise: Clockwise or counter-clockwise coil wrapping
@@ -58,10 +69,133 @@ def generate(layer_count, wrap_clockwise, turns_per_layer, trace_width, trace_sp
 		template = file.read()
 
 	# generate vias and their connectors
-	(vias, arc_connectors) = generate_vias(outer_diameter, turns_per_layer, trace_width, trace_spacing, via_diameter, via_drill, layer_count)
+	(vias, line_connectors) = generate_vias_square(outer_diameter, turns_per_layer, trace_width, trace_spacing, via_diameter, via_drill, layer_count)
 
 	# generate coil spirals and connect them to vias
-	(arcs, lines, last_used_radius) = generate_coil_spiral(wrap_clockwise, layer_count, trace_width, trace_spacing, turns_per_layer, outer_diameter, layer_names, arc_connectors)
+	(lines, last_used_radius) = generate_coil_rect_part(wrap_clockwise, layer_count, trace_width, trace_spacing, turns_per_layer, outer_diameter, layer_names, line_connectors)
+
+	# build coil endpoints
+	(lines, pads) = generate_pads(lines, last_used_radius, trace_width, via_diameter, wrap_clockwise, layer_count, layer_names[0], layer_names[layer_count -1])
+
+	substitution_dict = {
+		"NAME": coil_name,
+		"LINES": ''.join(lines),
+		"ARCS": '',
+		"VIAS": ''.join(vias),
+		"PADS": ''.join(pads),
+		"UUID1": generator.get_uuid(),
+		"UUID2": generator.get_uuid(),
+		"UUID3": generator.get_uuid(),
+	}
+
+	return template.format(**substitution_dict)
+
+def generate_coil_rect_part(wrap_clockwise, layer_count, trace_width, trace_spacing, turns_per_layer, outer_diameter, layer_names, line_connectors):
+	"""
+	Generates coil rectangles for a given rectangular coil and connects them to vias.
+	Args:
+		wrap_clockwise: Clockwise or counter-clockwise coil wrapping
+		layer_count: Number of layers in coil
+		trace_width: Width of line trace
+		trace_spacing: Distance between line traces
+		turns_per_layer: Minimum number of turns per layer: Connecting to vias might introduce up to one more turn
+		outer_diameter: Desires outer coil diameter. Coil generation is from outside to inside, so if this is too small, coil wraps may collode
+		layer_names: Names of Kicad layers to place coil in. Lenght is expected to be >= layer_count
+		line_connectors: Via connector points to connect to
+
+	Returns:
+		([str], [str], float): (Generated lines for spirals for PCBNew, Generated connector lines for squares to vias, last used radius in coil generation)
+	"""
+	wrap_direction_multiplier = 1 if wrap_clockwise else -1
+	increment = trace_width + trace_spacing
+	lines = []
+	# generating from inside to outside
+	start_radius = outer_diameter / 2 - turns_per_layer * trace_width - (turns_per_layer - 1) * trace_spacing
+	for layer in range(layer_count):
+		current_radius = start_radius
+
+		# for odd layers, the wrap direction needs to be flipped
+		inverse_turn_mult = 1
+		if layer % 2 != 0:
+			inverse_turn_mult = -1
+
+		#generate all full turns for one layer
+		for _ in range(turns_per_layer):
+			lines.extend(generator.square(
+					current_radius,
+					increment,
+					trace_width,
+					layer_names[layer],
+					wrap_direction_multiplier * inverse_turn_mult
+				))
+			current_radius += increment
+
+		# connect to vias
+		if layer % 2 == 0:
+			first_via_inside = False
+			second_via_inside = True
+		else:
+			first_via_inside = True
+			second_via_inside = False
+
+		if (wrap_clockwise and layer % 2 == 0) \
+			or (not wrap_clockwise and layer % 2 == 1):
+			current_clockwise = True
+		else:
+			current_clockwise = False
+
+		loop_inner_point = generator.P2D(start_radius, 0)
+		loop_outer_point = generator.P2D(current_radius, 0)
+
+		# connect up to two vias, or one for first layer
+		if layer > 0:
+			if first_via_inside:
+				loop_end_point = loop_inner_point
+				end_point_radius = start_radius
+			else:
+				loop_end_point = loop_outer_point
+				end_point_radius = current_radius
+			lines = connect_via_square_coil(end_point_radius, loop_end_point, increment, layer_names[layer], trace_width, first_via_inside, current_clockwise, line_connectors[layer -1], lines)
+
+		if layer < (layer_count -1) or (layer_count % 2 != 0):
+			if second_via_inside:
+				loop_end_point = loop_inner_point
+				end_point_radius = start_radius
+			else:
+				loop_end_point = loop_outer_point
+				end_point_radius = current_radius
+			lines = connect_via_square_coil(end_point_radius, loop_end_point, increment, layer_names[layer], trace_width, second_via_inside, current_clockwise, line_connectors[layer], lines)
+
+	return (lines, current_radius)
+
+
+def generate_circular(layer_count, wrap_clockwise, turns_per_layer, trace_width, trace_spacing, via_diameter, via_drill, outer_diameter, coil_name, layer_names):
+	"""
+	Generates circular coils with given parameters. Attempts to place all parts to generate valid coils, though with some parameters, producing a valid coil might not be possible
+	Args:
+		layer_count: Number of layers in coil
+		wrap_clockwise: Clockwise or counter-clockwise coil wrapping
+		turns_per_layer: Minimum number of turns per layer: Connecting to vias might introduce up to one more turn
+		trace_width: Width of line trace
+		trace_spacing: Distance between line traces
+		via_diameter: Outer diameter of connecting vias
+		via_drill: Diameter of via drill hole
+		outer_diameter: Desires outer coil diameter. Coil generation is from outside to inside, so if this is too small, coil wraps may collode
+		coil_name: Reference name of coil to put in kicad
+		layer_names: Names of Kicad layers to place coil in. Lenght is expected to be >= layer_count
+	Returns:
+		File: Generated coil in file
+	"""
+	template_file = os.path.join(os.path.dirname(__file__), TEMPLATE_FILE)
+
+	with open(template_file, "r") as file:
+		template = file.read()
+
+	# generate vias and their connectors
+	(vias, arc_connectors) = generate_vias_circular(outer_diameter, turns_per_layer, trace_width, trace_spacing, via_diameter, via_drill, layer_count)
+
+	# generate coil spirals and connect them to vias
+	(arcs, lines, last_used_radius) = generate_coil_spiral_part(wrap_clockwise, layer_count, trace_width, trace_spacing, turns_per_layer, outer_diameter, layer_names, arc_connectors)
 
 	# build coil endpoints
 	(lines, pads) = generate_pads(lines, last_used_radius, trace_width, via_diameter, wrap_clockwise, layer_count, layer_names[0], layer_names[layer_count -1])
@@ -81,7 +215,7 @@ def generate(layer_count, wrap_clockwise, turns_per_layer, trace_width, trace_sp
 
 	return template.format(**substitution_dict)
 
-def generate_coil_spiral(wrap_clockwise, layer_count, trace_width, trace_spacing, turns_per_layer, outer_diameter, layer_names, arc_connectors):
+def generate_coil_spiral_part(wrap_clockwise, layer_count, trace_width, trace_spacing, turns_per_layer, outer_diameter, layer_names, arc_connectors):
 	"""
 	Generates coil spirals for a given coil and connects them to vias.
 	Args:
@@ -103,6 +237,7 @@ def generate_coil_spiral(wrap_clockwise, layer_count, trace_width, trace_spacing
 	arcs = []
 	lines = []
 
+	# generating from inside to outside
 	start_radius = outer_diameter / 2 - turns_per_layer * trace_width - (turns_per_layer - 1) * trace_spacing
 	for layer in range(layer_count):
 		current_radius = start_radius
@@ -149,7 +284,7 @@ def generate_coil_spiral(wrap_clockwise, layer_count, trace_width, trace_spacing
 				loop_end_point = loop_outer_point
 				end_point_radius = current_radius
 
-			(arcs, lines) = connect_via(end_point_radius, loop_end_point, increment, layer_names[layer], trace_width, first_via_inside, current_clockwise, arc_connectors[layer -1], arcs, lines)
+			(arcs, lines) = connect_via_circular_coil(end_point_radius, loop_end_point, increment, layer_names[layer], trace_width, first_via_inside, current_clockwise, arc_connectors[layer -1], arcs, lines)
 
 		if layer < (layer_count -1) or (layer_count % 2 != 0):
 			if second_via_inside:
@@ -159,14 +294,14 @@ def generate_coil_spiral(wrap_clockwise, layer_count, trace_width, trace_spacing
 				loop_end_point = loop_outer_point
 				end_point_radius = current_radius
 
-			(arcs, lines) = connect_via(end_point_radius, loop_end_point, increment, layer_names[layer], trace_width, second_via_inside, current_clockwise, arc_connectors[layer], arcs, lines)
+			(arcs, lines) = connect_via_circular_coil(end_point_radius, loop_end_point, increment, layer_names[layer], trace_width, second_via_inside, current_clockwise, arc_connectors[layer], arcs, lines)
 
 	return (arcs, lines, current_radius)
 
 
-def generate_vias(outer_diameter, turns_per_layer, trace_width, trace_spacing, via_diameter, via_drill, layer_count):
+def generate_vias_circular(outer_diameter, turns_per_layer, trace_width, trace_spacing, via_diameter, via_drill, layer_count):
 	"""
-	Generates vias for a given coil.
+	Generates vias for a given coil in a circular pattern.
 	Connection has to be done when coil spirals have been generated
 	Args:
 		outer_diameter: Desired outer coil diameter
@@ -218,7 +353,7 @@ def generate_vias(outer_diameter, turns_per_layer, trace_width, trace_spacing, v
 		if rotation_degree > 90 and rotation_degree < 270:
 			width *= -1
 
-		arc_connectors.append(Connector(width, height, rotation_degree))
+		arc_connectors.append(ConnectorArc(width, height, rotation_degree))
 
 		# if the coil has an odd layer count, the last via shold be pad number 2
 		if odd_layer_count == 1 and v == via_count -1:
@@ -240,6 +375,165 @@ def generate_vias(outer_diameter, turns_per_layer, trace_width, trace_spacing, v
 			)
 
 	return (vias, arc_connectors)
+
+
+def generate_vias_square(outer_diameter, turns_per_layer, trace_width, trace_spacing, via_diameter, via_drill, layer_count):
+	"""
+	Generates vias for a given coil in a square pattern.
+	Connection has to be done when coil squares have been generated
+	Args:
+		outer_diameter: Desired outer coil diameter
+		turns_per_layer: Number of spiral turns per coil layer
+		trace_width: Width of line trace
+		trace_spacing: Distance between line traces
+		via_diameter: Outer diameter of connecting vias
+		via_drill: Diameter of via drill hole
+		layer_count: Number of layers in coil
+
+	Returns:
+		([str], [Connector]): (Generated vias for PCBNew, Via positions to be used for easier connecting with coil spiral)
+	"""
+	(VIA_INSIDE_RADIUS, VIA_OUTSIDE_RADIUS) = get_via_radius(outer_diameter, turns_per_layer, trace_width, trace_spacing, via_diameter)
+	line_connectors = []
+	vias = []
+
+	#calculate the number of vias inside and outside of coil and their corresponding degree spacing
+	num_vias_inside = 0
+	num_vias_outside = 0
+
+	(num_vias_inside, num_vias_outside) = get_num_vias(layer_count)
+
+	degree_steps_inside = 360 / (num_vias_inside)
+	degree_steps_outside = 0
+	if num_vias_outside != 0:
+		degree_steps_outside = 360 / (num_vias_outside)
+
+	via_count = num_vias_inside + num_vias_outside
+	odd_layer_count = layer_count % 2
+
+	inside_len = 4 * VIA_INSIDE_RADIUS * 2
+	inside_len_steps = inside_len / num_vias_inside
+	inside_current_side = Side.RIGHT
+	inside_current_x = VIA_INSIDE_RADIUS
+	inside_current_y = 0
+
+	outside_len = 4 * VIA_OUTSIDE_RADIUS * 2
+	outside_len_steps = outside_len / num_vias_outside
+	outside_current_side = Side.RIGHT
+	outside_current_x = VIA_OUTSIDE_RADIUS
+	outside_current_y = 0
+
+	for v in range(0, via_count):
+
+		if v % 2 != 0:
+			# outside via
+			height = outside_current_y
+			width =  outside_current_x
+
+			# rotating via position counter clockwise
+			if outside_current_side == Side.RIGHT:
+				tmp = outside_current_y - outside_len_steps
+				if tmp < -VIA_OUTSIDE_RADIUS:
+					outside_current_side = outside_current_side.next(False)
+					outside_current_y = -VIA_OUTSIDE_RADIUS
+					outside_current_x = VIA_OUTSIDE_RADIUS - (abs(tmp) - VIA_OUTSIDE_RADIUS)
+				else:
+					outside_current_y = tmp
+					outside_current_x = VIA_OUTSIDE_RADIUS
+			elif outside_current_side == Side.UP:
+				tmp = outside_current_x - outside_len_steps
+				if tmp < -VIA_OUTSIDE_RADIUS:
+					outside_current_side = outside_current_side.next(False)
+					outside_current_y = -VIA_OUTSIDE_RADIUS + (abs(tmp) - VIA_OUTSIDE_RADIUS)
+					outside_current_x = -VIA_OUTSIDE_RADIUS
+				else:
+					outside_current_x = tmp
+					outside_current_y = -VIA_OUTSIDE_RADIUS
+			elif outside_current_side == Side.LEFT:
+				tmp = outside_current_y + outside_len_steps
+				if tmp > VIA_OUTSIDE_RADIUS:
+					outside_current_side = outside_current_side.next(False)
+					outside_current_y = VIA_OUTSIDE_RADIUS
+					outside_current_x = -VIA_OUTSIDE_RADIUS + (abs(tmp) - VIA_OUTSIDE_RADIUS)
+				else:
+					outside_current_y = tmp
+					outside_current_x = -VIA_OUTSIDE_RADIUS
+			else:
+				tmp = outside_current_x + outside_len_steps
+				if tmp > VIA_OUTSIDE_RADIUS:
+					outside_current_side = outside_current_side.next(False)
+					outside_current_y = VIA_OUTSIDE_RADIUS - (abs(tmp) - VIA_OUTSIDE_RADIUS)
+					outside_current_x = VIA_OUTSIDE_RADIUS
+				else:
+					outside_current_x = tmp
+					outside_current_y = VIA_OUTSIDE_RADIUS
+
+		else:
+			#inside via
+			height = inside_current_y
+			width =  inside_current_x
+
+			# rotating via position counter clockwise
+			if inside_current_side == Side.RIGHT:
+				tmp = inside_current_y - inside_len_steps
+				if tmp < -VIA_INSIDE_RADIUS:
+					inside_current_side = inside_current_side.next(False)
+					inside_current_y = -VIA_INSIDE_RADIUS
+					inside_current_x = VIA_INSIDE_RADIUS - (abs(tmp) - VIA_INSIDE_RADIUS)
+				else:
+					inside_current_y = tmp
+					inside_current_x = VIA_INSIDE_RADIUS
+			elif inside_current_side == Side.UP:
+				tmp = inside_current_x - inside_len_steps
+				if tmp < -VIA_INSIDE_RADIUS:
+					inside_current_side = inside_current_side.next(False)
+					inside_current_y = -VIA_INSIDE_RADIUS + (abs(tmp) - VIA_INSIDE_RADIUS)
+					inside_current_x = -VIA_INSIDE_RADIUS
+				else:
+					inside_current_x = tmp
+					inside_current_y = -VIA_INSIDE_RADIUS
+			elif inside_current_side == Side.LEFT:
+				tmp = inside_current_y + inside_len_steps
+				if tmp > VIA_INSIDE_RADIUS:
+					inside_current_side = inside_current_side.next(False)
+					inside_current_y = VIA_INSIDE_RADIUS
+					inside_current_x = -VIA_INSIDE_RADIUS + (abs(tmp) - VIA_INSIDE_RADIUS)
+				else:
+					inside_current_y = tmp
+					inside_current_x = -VIA_INSIDE_RADIUS
+			else:
+				tmp = inside_current_x + inside_len_steps
+				if tmp > VIA_INSIDE_RADIUS:
+					inside_current_side = inside_current_side.next(False)
+					inside_current_y = VIA_INSIDE_RADIUS - (abs(tmp) - VIA_INSIDE_RADIUS)
+					inside_current_x = VIA_INSIDE_RADIUS
+				else:
+					inside_current_x = tmp
+					inside_current_y = VIA_INSIDE_RADIUS
+
+		line_connectors.append(ConnectorArc(width, height, 0))
+
+		# if the coil has an odd layer count, the last via shold be pad number 2
+		if odd_layer_count == 1 and v == via_count -1:
+			vias.append(
+				generator.via(
+					generator.P2D(width, height),
+					via_diameter,
+					via_drill,
+					2
+				)
+			)
+		else:
+			vias.append(
+				generator.via(
+					generator.P2D(width, height),
+					via_diameter,
+					via_drill
+				)
+			)
+
+	return (vias, line_connectors)
+
 
 def generate_pads(lines, outer_radius, trace_width, via_diameter, clockwise, layer_count, top_layer_name, bottom_layer_name):
 	"""
@@ -483,9 +777,9 @@ def is_left_of(point_a, point_b):
 	"""
 	return point_a < point_b
 
-def connect_via(end_point_radius, loop_end_point, loop_increment, layer_name, trace_width, inside, clockwise, arc_connector, arcs, lines):
+def connect_via_circular_coil(end_point_radius, loop_end_point, loop_increment, layer_name, trace_width, inside, clockwise, arc_connector, arcs, lines):
 	"""
-	Connects a coil spirals endpoint to a designated via.
+	Connects a circular coil spirals endpoint to a designated via.
 	Does so in three steps:
 	1) If the distance between the end point and via is >= 180 degree in coil winding direction, produces a half arc.
 	2) If the distance is then still greater than 3 * loop_increment, generates a partial arc to fill the gap
@@ -493,7 +787,7 @@ def connect_via(end_point_radius, loop_end_point, loop_increment, layer_name, tr
 	Args:
 		end_point_radius: Radius of loop_end_point
 		loop_end_point: Edge of coil spiral to connect to via
-		loop_increment:
+		loop_increment: Units of how much the spiral diameter increments per half turn
 		layer_name: Name of currently modified layer, needed for line generation
 		trace_width: Width of the line trace
 		inside: Boolean to identify if inside of a coil spiral is to be connected or outside
@@ -572,3 +866,170 @@ def connect_via(end_point_radius, loop_end_point, loop_increment, layer_name, tr
 		layer_name))
 
 	return (arcs, lines)
+
+def connect_via_square_coil(end_point_radius, loop_end_point, loop_increment, layer_name, trace_width, inside, clockwise, line_connector, lines):
+	"""
+	Connects a square coil spirals endpoint to a designated via.
+	Does so in three steps:
+	1) If the distance between the end point and via is >= 180 degree in coil winding direction, produces a half arc.
+	2) If the distance is then still greater than 3 * loop_increment, generates a partial arc to fill the gap
+	3) Connects the last missing piece via a straight line
+	Args:
+		end_point_radius: Radius of loop_end_point
+		loop_end_point: Edge of coil spiral to connect to via
+		loop_increment: Units of how much the spiral diameter increments per half turn
+		layer_name: Name of currently modified layer, needed for line generation
+		trace_width: Width of the line trace
+		inside: Boolean to identify if inside of a coil spiral is to be connected or outside
+		clockwise: Boolean to identify if the coil spiral is going clockwise or counter-clockwise (check from outside end point)
+		line_connector: Via to connect to
+		lines: previously drawn lines array to manipulate / append
+	Returns:
+		[str]: Modified lines array
+	"""
+	wrap_direction_multiplier = 1 if clockwise else -1
+	wrap_direction_multiplier *= -1 if inside else 1
+
+	current_side = Side.get_closest_side(generator.P2D(loop_end_point.x, loop_end_point.y))
+	goal_side = Side.get_closest_side(generator.P2D(line_connector.x, line_connector.y))
+
+	num_required_side_changes = Side.get_num_side_changes(current_side, goal_side, clockwise if inside else not clockwise)
+	max_required_side_change = num_required_side_changes
+
+	target_radius_closest_to_via = end_point_radius
+	if inside and goal_side == Side.LEFT:
+		target_radius_closest_to_via -= loop_increment
+
+	if (inside and not clockwise and goal_side == Side.RIGHT and line_connector.y > 0) or (inside and clockwise and goal_side == Side.RIGHT and line_connector.y < 0):
+		# via is "behind" connector point. need to do full spiral
+		num_required_side_changes = 4
+		max_required_side_change = 4
+		target_radius_closest_to_via -= loop_increment
+
+	if (not inside  and clockwise and goal_side == Side.RIGHT and line_connector.y > 0)  or (not inside and not clockwise and goal_side == Side.RIGHT and line_connector.y < 0):
+		# via is "behind" connector point. need to do full spiral
+		num_required_side_changes = 4
+		max_required_side_change = 4
+		target_radius_closest_to_via += loop_increment
+
+	current_closest_to_via_radius = end_point_radius
+	current_closest_to_via = loop_end_point
+
+	# define a point close to the via from where to go straight to the via
+	if abs(line_connector.x) > abs(line_connector.y):
+		# via is closer to left or right side of coil
+		side_factor = 1 if line_connector.x > 0 else -1
+		nearest_connector_point = generator.P2D(side_factor * target_radius_closest_to_via, line_connector.y)
+	elif abs(line_connector.x) < abs(line_connector.y):
+		# via is close to upper lor lower end of coil
+		side_factor = 1 if line_connector.y > 0 else -1
+		nearest_connector_point = generator.P2D(line_connector.x, side_factor * (target_radius_closest_to_via - (loop_increment if inside else 0) ))
+	else:
+		# via is in corner
+		lr_side_factor = 1 if line_connector.x > 0 else -1
+		ud_side_factor = 1 if line_connector.y > 0 else -1
+		nearest_connector_point = generator.P2D(lr_side_factor * (target_radius_closest_to_via - (loop_increment if inside else 0) ) , ud_side_factor * (target_radius_closest_to_via - (loop_increment if inside else 0) ))
+
+	# if the via is too far away from one of the loop endpoints, the gap needs to be bridged
+	if max_required_side_change > 0:
+		if inside:
+			current_closest_to_via_radius -= loop_increment
+
+		# first line is from coil "spiral" to edge aka not full radius
+		coil_to_edge = generator.line(current_closest_to_via, generator.P2D(current_closest_to_via.x, -wrap_direction_multiplier * current_closest_to_via_radius), trace_width, layer_name),
+		lines.extend(coil_to_edge)
+		current_closest_to_via = generator.P2D(current_closest_to_via.x, -wrap_direction_multiplier * current_closest_to_via_radius)
+		num_required_side_changes -= 1
+		current_side = current_side.next(clockwise)
+
+		# adds full line until target side reached
+		while num_required_side_changes > 0:
+			if current_side == Side.UP or current_side == Side.DOWN:
+				if inside and ((clockwise and current_side == Side.DOWN) or (not clockwise and current_side == Side.UP)):
+					tmp_x = -(current_closest_to_via.x - loop_increment)
+				else:
+					tmp_x = -current_closest_to_via.x
+
+				new_target = generator.P2D(tmp_x, current_closest_to_via.y)
+			else:
+				new_target = generator.P2D(current_closest_to_via.x, -current_closest_to_via.y)
+
+
+			line = generator.line(current_closest_to_via, new_target, trace_width, layer_name)
+			lines.extend(line)
+			current_closest_to_via = new_target
+			num_required_side_changes -= 1
+			current_side = current_side.next(clockwise)
+
+		# last (or second to last, if via is in corner) non-full line to reach via connector
+		if current_side == Side.UP or current_side == Side.DOWN:
+			tmp = generator.P2D(nearest_connector_point.x, current_closest_to_via.y)
+			edge_to_via_connector = generator.line(current_closest_to_via, tmp, trace_width, layer_name),
+			current_closest_to_via = tmp
+		else:
+			tmp = generator.P2D(current_closest_to_via.x, nearest_connector_point.y)
+			edge_to_via_connector = generator.line(current_closest_to_via, tmp, trace_width, layer_name),
+			current_closest_to_via = tmp
+		lines.extend(edge_to_via_connector)
+
+	lines.extend(generator.line(
+		current_closest_to_via,
+		nearest_connector_point,
+		trace_width,
+		layer_name
+	))
+
+	lines.extend(generator.line(
+		nearest_connector_point,
+		generator.P2D(line_connector.x, line_connector.y),
+		trace_width,
+		layer_name))
+
+	return lines
+
+class Side(IntEnum):
+	LEFT = 0
+	UP = 1
+	RIGHT = 2
+	DOWN = 3
+
+	def get_closest_side(point: generator.P2D) -> 'Side':
+		if abs(point.x) > abs(point.y):
+			# via is closer to left or right side of coil
+			if point.x > 0:
+				return Side.RIGHT
+			else:
+				return Side.LEFT
+		else:
+			if point.y > 0:
+				return Side.DOWN
+			else:
+				return Side.UP
+	def next(self, clockwise: bool):
+		if clockwise:
+			if self == Side.LEFT:
+				return Side.UP
+			elif self == Side.UP:
+				return Side.RIGHT
+			elif self == Side.RIGHT:
+				return Side.DOWN
+			else:
+				return Side.LEFT
+		else:
+			if self == Side.LEFT:
+				return Side.DOWN
+			elif self == Side.DOWN:
+				return Side.RIGHT
+			elif self == Side.RIGHT:
+				return Side.UP
+			else:
+				return Side.LEFT
+
+	def get_num_side_changes(self, target: 'Side', clockwise):
+		hops = 0
+		current = self
+		while current != target:
+			hops += 1
+			current = current.next(clockwise)
+
+		return hops

@@ -2,6 +2,7 @@ import os
 import logging
 import json
 import math
+import traceback
 
 import wx # type: ignore
 import pcbnew # type: ignore
@@ -260,33 +261,37 @@ class CoilGeneratorUI(wx.Frame):
 				continue
 
 	def _handle_coil_generation(self):
-		self.Destroy()
+		try:
+			self.Destroy()
 
-		self.logger.log(logging.INFO, "Generating coil ...")
-		#generate layer names. KiCAD seems to want standard layer names for our generated objects, instead of custom defined layer names
-		layer_names = []
-		for x in range(pcbnew.GetBoard().GetCopperLayerCount()):
-			layer_names.append("In" + str(x) + ".Cu")
-		#first and last layer have different naming scheme than InX.Cu
-		layer_names[0] = "F.Cu"
-		layer_names[pcbnew.GetBoard().GetCopperLayerCount() -1] = "B.Cu"
+			self.logger.log(logging.INFO, "Generating coil ...")
+			#generate layer names. KiCAD seems to want standard layer names for our generated objects, instead of custom defined layer names
+			layer_names = []
+			for x in range(pcbnew.GetBoard().GetCopperLayerCount()):
+				layer_names.append("In" + str(x) + ".Cu")
+			#first and last layer have different naming scheme than InX.Cu
+			layer_names[0] = "F.Cu"
+			layer_names[pcbnew.GetBoard().GetCopperLayerCount() -1] = "B.Cu"
 
-		template = coilgenerator.generate(
-			self._parse_data("layer_count"),
-			self._parse_data("turn_direction"),
-			self._parse_data("turns_count"),
-			self._parse_data("trace_width"),
-			self._parse_data("trace_spacing"),
-			self._parse_data("via_outer"),
-			self._parse_data("via_drill"),
-			self._parse_data("outer_diameter"),
-			self._parse_data("name"),
-			layer_names
-		)
+			template = coilgenerator.generate_square(
+				self._parse_data("layer_count"),
+				self._parse_data("turn_direction"),
+				self._parse_data("turns_count"),
+				self._parse_data("trace_width"),
+				self._parse_data("trace_spacing"),
+				self._parse_data("via_outer"),
+				self._parse_data("via_drill"),
+				self._parse_data("outer_diameter"),
+				self._parse_data("name"),
+				layer_names
+			)
 
-		self.logger.log(logging.INFO, "Done.")
+			self.logger.log(logging.INFO, "Done.")
 
-		return template
+			return template
+		except Exception as e:
+			self.logger.log(logging.INFO, traceback.format_exc())
+			self.logger.log(logging.INFO, "Exception was thrown while generating coil: " + repr(e))
 	
 	def _add_to_fp_lib(self):
 		entry = "  (lib (name \"PCB Coils\")"

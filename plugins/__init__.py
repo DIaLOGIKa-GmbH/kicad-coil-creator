@@ -1,3 +1,5 @@
+import traceback
+
 try:
 	from .plugin import Plugin
 	plugin = Plugin()
@@ -5,4 +7,5 @@ try:
 except Exception as e:
 	import logging
 	logger = logging.getLogger()
-	logger.debug(repr(e))
+	logger.log(logging.INFO, "Exception was thrown while initializing coilgen plugin: " + repr(e))
+	logger.log(traceback.format_exc())

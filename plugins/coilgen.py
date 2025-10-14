@@ -13,7 +13,7 @@ from typing import cast
 
 from kipy import KiCad # type: ignore
 from kipy.board import BoardLayer, BoardLayerClass # type: ignore
-from kipy.board_types import BoardArc, Pad, FootprintInstance # type: ignore
+from kipy.board_types import BoardArc, Pad, FootprintInstance, PadStackType, PadStackShape # type: ignore
 from kipy.geometry import Vector2 # type: ignore
 
 # WX GUI form that show coil settings
@@ -404,10 +404,24 @@ class CoilGeneratorUI(wx.Frame):
 		#fake_via.pad_type = 0
 		#fake_via.padstack = PadStack()
 		#fake_via.padstack.drill.type = 0  # 0 = circular
-		fake_via.padstack.unconnected_layer_removal = False
-		fake_via.padstack.drill.diameter = Vector2.from_xy_mm(0.3, 0.3) # two dimensions, can be slot as well
+		#fake_via.padstack.layers = [0, 1, 2, 3]
+		fake_via.padstack.type = PadStackType.PST_NORMAL
+		fake_via.padstack.layers = [
+			BoardLayer.BL_F_Cu,
+			BoardLayer.BL_B_Cu,
+			#BoardLayer.BL_F_Mask,
+			#BoardLayer.BL_B_Mask,
+			# Extend as needed
+		]
+
+		
+		#self.logger.log(logging.DEBUG, fake_via.padstack.copper_layers)
+
+		#fake_via.padstack.unconnected_layer_removal = False
+		#fake_via.padstack.drill.diameter = Vector2.from_xy_mm(0.3, 0.3) # two dimensions, can be slot as well
 
 		for layer in fake_via.padstack.copper_layers:
+			layer.shape = PadStackShape.PSS_CIRCLE
 			layer.size = Vector2.from_xy_mm(1, 1)
 
 		fp.add_item(fake_via)

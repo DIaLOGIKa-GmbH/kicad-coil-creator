@@ -6,20 +6,37 @@ import math
 import wx # type: ignore
 import pcbnew # type: ignore
 
-from .lib import menu
-from .lib import coilgenerator
+import lib.menu as menu
+import lib.coilgenerator as coilgenerator
+
+from typing import cast
+
+from kipy import KiCad # type: ignore
+from kipy.board import BoardLayer, BoardLayerClass # type: ignore
+from kipy.board_types import BoardArc, Pad, FootprintInstance, PadStackType, PadStackShape # type: ignore
+from kipy.geometry import Vector2 # type: ignore
 
 # WX GUI form that show coil settings
 class CoilGeneratorUI(wx.Frame):
-	def __init__(self, pcbnew_frame):
+	def __init__(self):
 		super(CoilGeneratorUI, self).__init__()
 
 		self.width_label = 120
 		self.width_content = 180
 		self.padding = 5
 
-		self.board = pcbnew.GetBoard()
-		self.path_project = os.path.dirname(self.board.GetFileName())
+		self.kicad = KiCad()
+
+		self.board = self.kicad.get_board()
+		self.stackup = self.board.get_stackup()
+
+		self.copper_layers = [layer for layer in self.stackup.layers
+			if layer.layer <= BoardLayer.BL_B_Cu
+			and layer.layer >= BoardLayer.BL_F_Cu
+		]
+		self.copper_layer_count = len(self.copper_layers)
+
+		self.path_project = self.board.document.project.path
 		self.path_footprint_folder_name = "/pcb_coils/"
 		self.path_footprint_folder = self.path_project + self.path_footprint_folder_name
 		self.path_fp_lib_table = self.path_project + "/fp-lib-table"
@@ -27,8 +44,6 @@ class CoilGeneratorUI(wx.Frame):
 		self._init_logger()
 		self.logger = logging.getLogger(__name__)
 		self.logger.log(logging.DEBUG, "Running Coil Generator")
-
-		self._pcbnew_frame = pcbnew_frame
 
 		wx.Dialog.__init__(
 			self,
@@ -55,8 +70,8 @@ class CoilGeneratorUI(wx.Frame):
 				# if choice structure values are sourced from board variables, some fields need to be dynamically generated before applying general choice handling
 				if entry["type"] == "choices_from_board":
 					if entry["choices_source"] == "COPPER_LAYER_COUNT":
-						entries_str = [str(e) for e in range(1, pcbnew.GetBoard().GetCopperLayerCount()+1)]
-						entries = [e for e in range(1, pcbnew.GetBoard().GetCopperLayerCount()+1)]
+						entries_str = [str(e) for e in range(1, self.copper_layer_count + 1)]
+						entries = [e for e in range(1, self.copper_layer_count + 1)]
 						entry["choices"] = entries_str
 						entry["choices_data"] = entries
 
@@ -265,11 +280,11 @@ class CoilGeneratorUI(wx.Frame):
 		self.logger.log(logging.INFO, "Generating coil ...")
 		#generate layer names. KiCAD seems to want standard layer names for our generated objects, instead of custom defined layer names
 		layer_names = []
-		for x in range(pcbnew.GetBoard().GetCopperLayerCount()):
+		for x in range(self.copper_layer_count):
 			layer_names.append("In" + str(x) + ".Cu")
 		#first and last layer have different naming scheme than InX.Cu
 		layer_names[0] = "F.Cu"
-		layer_names[pcbnew.GetBoard().GetCopperLayerCount() -1] = "B.Cu"
+		layer_names[self.copper_layer_count -1] = "B.Cu"
 
 		template = coilgenerator.generate(
 			self._parse_data("layer_count"),
@@ -351,10 +366,77 @@ class CoilGeneratorUI(wx.Frame):
 			file.close()
 
 	def _on_generate_button_klick(self, event):
-		template = self. _handle_coil_generation()
+		template = self._handle_coil_generation()
+
+		defaults = self.board.get_graphics_defaults()[BoardLayerClass.BLC_COPPER]
+
+		copper_layers = [layer for layer in self.stackup.layers
+                     if layer.layer <= BoardLayer.BL_B_Cu
+                     and layer.layer >= BoardLayer.BL_F_Cu]
+		
+		self.logger.log(logging.DEBUG, copper_layers)
+
+
+		fpi = FootprintInstance()
+		fpi.layer = BoardLayer.BL_F_Cu
+		fpi.reference_field.text.value = "coil name"
+		fpi.reference_field.visible = True
+		fpi.value_field.text.value = "abc def"
+		fpi.value_field.visible = True
+		fpi.attributes.not_in_schematic = True
+		fpi.attributes.exclude_from_bill_of_materials = True
+		fpi.attributes.exclude_from_position_files = True
+
+		fp = fpi.definition
+
+		copper_arc = BoardArc()
+		copper_arc.start = Vector2.from_xy_mm(20, 20)
+		copper_arc.mid = Vector2.from_xy_mm(25, 25) # mid point ON arc, NOT center point
+		copper_arc.end = Vector2.from_xy_mm(30, 20)
+		copper_arc.layer = BoardLayer.BL_F_Cu
+		copper_arc.attributes.stroke.width = 1500000 # nm
+
+		fp.add_item(copper_arc)
+
+		fake_via = Pad()
+		fake_via.number = ""
+		fake_via.position = Vector2.from_xy_mm(10, 10)
+		#fake_via.pad_type = 0
+		#fake_via.padstack = PadStack()
+		#fake_via.padstack.drill.type = 0  # 0 = circular
+		#fake_via.padstack.layers = [0, 1, 2, 3]
+		fake_via.padstack.type = PadStackType.PST_NORMAL
+		fake_via.padstack.layers = [
+			BoardLayer.BL_F_Cu,
+			BoardLayer.BL_B_Cu,
+			#BoardLayer.BL_F_Mask,
+			#BoardLayer.BL_B_Mask,
+			# Extend as needed
+		]
+
+		
+		#self.logger.log(logging.DEBUG, fake_via.padstack.copper_layers)
+
+		#fake_via.padstack.unconnected_layer_removal = False
+		#fake_via.padstack.drill.diameter = Vector2.from_xy_mm(0.3, 0.3) # two dimensions, can be slot as well
+
+		for layer in fake_via.padstack.copper_layers:
+			layer.shape = PadStackShape.PSS_CIRCLE
+			layer.size = Vector2.from_xy_mm(1, 1)
+
+		fp.add_item(fake_via)
+
+
+		# TODO: Why do we have to do it like this?
+		# places everything at 0,0
+		created = [cast(FootprintInstance, i) for i in self.board.create_items(fpi)]
+
+		# attaches footprint to mouse
+		if len(created) == 1:
+			self.board.interactive_move(created[0].id)
 
 		# copy the generated footprint into clipboard
-		clipboard = wx.Clipboard.Get()
+		"""clipboard = wx.Clipboard.Get()
 		if clipboard.Open():
 			self.logger.log(logging.DEBUG, "Adding to clipboard")
 
@@ -365,6 +447,18 @@ class CoilGeneratorUI(wx.Frame):
 
 			return
 		
+		evt_esc = wx.KeyEvent(wx.wxEVT_CHAR_HOOK)
+		evt_esc.SetKeyCode(wx.WXK_ESCAPE)
+		evt_esc.SetControlDown(True)
+
+		wx.PostEvent(self._pcbnew_frame, evt_esc)
+
+		evt_paste = wx.KeyEvent(wx.wxEVT_CHAR_HOOK)
+		evt_paste.SetKeyCode(ord('V'))
+		evt_paste.SetControlDown(True)
+	
+		wx.PostEvent(self._pcbnew_frame, evt_paste)
+
 		# paste generated footprint into the pcbview
 		try:
 			evt_esc = wx.KeyEvent(wx.wxEVT_CHAR_HOOK)
@@ -394,7 +488,7 @@ class CoilGeneratorUI(wx.Frame):
 
 			self.logger.log(logging.INFO, "Using wx.UIActionSimulator for paste")
 
-			wx.MilliSleep(100)
+			wx.MilliSleep(100)"""
 
 	def _on_key_up(self, event):
 		key_code = event.GetKeyCode()
@@ -494,18 +588,9 @@ class CoilGeneratorUI(wx.Frame):
 def get_safe_name(name, keepcharacters = (' ','.','_')):
     return "".join(c for c in name if c.isalnum() or c in keepcharacters).rstrip()
 
-# Plugin definition
-class Plugin(pcbnew.ActionPlugin):
-	def __init__(self):
-		self.name = "Coil Generator"
-		self.category = "Manufacturing"
-		self.description = "Toolkit to automatically generate coils for KiCad"
-		self.pcbnew_icon_support = hasattr(self, "show_toolbar_button")
-		self.show_toolbar_button = True
-		self.icon_file_name = os.path.join(os.path.dirname(__file__), 'icon.png')
-		self.dark_icon_file_name = os.path.join(os.path.dirname(__file__), 'icon.png')
-			
-	def Run(self):
-		# Assuming the PCBNew window is focused when run function is executed
-		# Alternative would be to keep track of last focussed window, which does not seem to work on all systems
-		CoilGeneratorUI(wx.Window.FindFocus()).Show()
+if __name__ == "__main__":
+    app = wx.App()
+    coilgen = CoilGeneratorUI()
+    coilgen.Show()
+    app.MainLoop()
+    coilgen.Destroy()

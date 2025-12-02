@@ -1,0 +1,24 @@
+{
+    "identifier": "com.github.DIaLOGIKa-GmbH.kicad-coil-creator",
+    "name": "PCB Coil Generator",
+    "description": "Generates multilayer PCB coils for direct placement or as a footprint",
+    "runtime": {
+        "type": "python",
+        "min_version": "3.11"
+    },
+    "actions": [
+        {
+            "identifier": "coilgen",
+            "name": "PCB Coil Generator",
+            "description": "Generates multilayer PCB coils for direct placement or as a footprint",
+            "show-button": true,
+            "scopes": [
+                "pcb"
+            ],
+            "entrypoint": "coilgen.py",
+            "icons-light": [
+                "icon.png"
+            ]
+        }
+    ]
+}
